@@ -1,52 +1,73 @@
 package ru.geekbrains;
 
-import java.io.BufferedReader;
+import ru.geekbrains.domain.HttpRequest;
+import ru.geekbrains.domain.HttpResponse;
+import ru.geekbrains.service.FileService;
+import ru.geekbrains.service.SocketService;
+
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
-import java.net.Socket;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.*;
+import java.util.Deque;
 
 public class RequestHandler implements Runnable {
 
-    private final Socket socket;
-    private final MessageHandler messageHandler;
+    private enum  StatusCode{
+        OK("HTTP/1.1 200 OK"),
+        NOT_FOUND("HTTP/1.1 404 NOT_FOUND")
+        ;
 
+        private final String statusCode;
 
+        StatusCode(String s) {
+            this.statusCode = s;
+        }
 
-    public RequestHandler(Socket socket) {
-        this.socket = socket;
-        messageHandler = new MessageHandler();
+        @Override
+        public String toString() {
+            return statusCode;
+        }
+    }
+
+    private final SocketService socketService;
+    private final FileService fileService;
+    private final RequestParser requestParser;
+    private final ResponseSerializer responseSerializer;
+
+    public RequestHandler(SocketService socketService, FileService fileService, RequestParser requestParser, ResponseSerializer responseSerializer) {
+        this.socketService = socketService;
+        this.fileService = fileService;
+        this.requestParser = requestParser;
+        this.responseSerializer = responseSerializer;
     }
 
     @Override
     public void run() {
-        try (BufferedReader input = new BufferedReader(
-                new InputStreamReader(
-                        socket.getInputStream(), StandardCharsets.UTF_8));
-             PrintWriter output = new PrintWriter(socket.getOutputStream())) {
+        Deque<String> rawRequest = socketService.readRequest();
 
-            while (!input.ready());
+        HttpRequest httpRequest = requestParser.parse(rawRequest);
+        HttpResponse httpResponse = new HttpResponse();
 
-            String parts = new PartsHandler(input).getPart();
-            Path path = new PathHandler(parts).getPath();
-            new ConnectionInfoHandler(input).info();
+        if (!fileService.exists(httpRequest.getUrl())) {
 
-
-
-            try {
-                output.println(messageHandler.sendOK());
-                Files.newBufferedReader(path).transferTo(output);
-                output.flush();
-            } catch (AccessDeniedException | NoSuchFileException n) {
-                n.printStackTrace();
-                output.println(messageHandler.sendError());
-                output.flush();
-            }
-            System.out.println("Client disconnected!");
-        } catch (IOException e) {
-            e.printStackTrace();
+            httpResponse.setStatusCode(404);
+            httpResponse.setStatusCodeName(StatusCode.NOT_FOUND.statusCode);
+            httpResponse.getHeaders().put("Content-Type", "text/html; charset=utf-8\n");
+            httpResponse.setBody("<h1>Файл не найден!</h1>");
+            socketService.writeResponse(responseSerializer.serialize(httpResponse));
+            return;
         }
+        httpResponse.setStatusCode(200);
+        httpResponse.getHeaders().put("Content-Type", "text/html; charset=utf-8\n");
+        httpResponse.setStatusCodeName(StatusCode.OK.statusCode);
+        httpResponse.setBody(fileService.readFile(httpRequest.getUrl()));
+        socketService.writeResponse(new ResponseSerializer().serialize(httpResponse));
+
+
+        try {
+            socketService.close();
+        } catch (IOException ex) {
+            throw new IllegalStateException(ex);
+        }
+        System.out.println("Client disconnected!");
+
     }
 }
