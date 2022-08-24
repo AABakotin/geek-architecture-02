@@ -11,22 +11,25 @@ import java.net.Socket;
 
 public class WebServer {
 
-
-
     public static void main(String[] args) {
-
-        ServerConfig serverConfig = ServerConfigFactory.create(args);
-        try (ServerSocket serverSocket = new ServerSocket(serverConfig.getPort())) {
+        ServerConfig config = ServerConfigFactory.create(args);
+        try (ServerSocket serverSocket = new ServerSocket(config.getPort())) {
             System.out.println("Server started!");
 
             while (true) {
                 Socket socket = serverSocket.accept();
                 System.out.println("New client connected!");
 
-                new Thread(new RequestHandler(new SocketService(socket), new FileService(serverConfig.getWww()), new RequestParser(), new ResponseSerializer())).start();
+                new Thread(new RequestHandler(
+                        new SocketService(socket),
+                        new FileService(config.getWww()),
+                        new RequestParser(),
+                        new ResponseSerializer()
+                )).start();
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 }
+

@@ -10,29 +10,16 @@ import java.util.Deque;
 
 public class RequestHandler implements Runnable {
 
-    private enum  StatusCode{
-        OK("HTTP/1.1 200 OK"),
-        NOT_FOUND("HTTP/1.1 404 NOT_FOUND")
-        ;
-
-        private final String statusCode;
-
-        StatusCode(String s) {
-            this.statusCode = s;
-        }
-
-        @Override
-        public String toString() {
-            return statusCode;
-        }
-    }
-
     private final SocketService socketService;
+
     private final FileService fileService;
     private final RequestParser requestParser;
     private final ResponseSerializer responseSerializer;
 
-    public RequestHandler(SocketService socketService, FileService fileService, RequestParser requestParser, ResponseSerializer responseSerializer) {
+    public RequestHandler(SocketService socketService,
+                          FileService fileService,
+                          RequestParser requestParser,
+                          ResponseSerializer responseSerializer) {
         this.socketService = socketService;
         this.fileService = fileService;
         this.requestParser = requestParser;
@@ -42,25 +29,25 @@ public class RequestHandler implements Runnable {
     @Override
     public void run() {
         Deque<String> rawRequest = socketService.readRequest();
+        HttpRequest req = requestParser.parse(rawRequest);
 
-        HttpRequest httpRequest = requestParser.parse(rawRequest);
-        HttpResponse httpResponse = new HttpResponse();
-
-        if (!fileService.exists(httpRequest.getUrl())) {
-
-            httpResponse.setStatusCode(404);
-            httpResponse.setStatusCodeName(StatusCode.NOT_FOUND.statusCode);
-            httpResponse.getHeaders().put("Content-Type", "text/html; charset=utf-8\n");
-            httpResponse.setBody("<h1>Файл не найден!</h1>");
-            socketService.writeResponse(responseSerializer.serialize(httpResponse));
+        if (!fileService.exists(req.getUrl())) {
+            HttpResponse resp = HttpResponse.createBuilder()
+                    .withStatusCode(404)
+                    .withStatusCodeName("NOT_FOUND")
+                    .withHeader("Content-Type", "text/html; charset=utf-8")
+                    .build();
+            socketService.writeResponse(responseSerializer.serialize(resp));
             return;
         }
-        httpResponse.setStatusCode(200);
-        httpResponse.getHeaders().put("Content-Type", "text/html; charset=utf-8\n");
-        httpResponse.setStatusCodeName(StatusCode.OK.statusCode);
-        httpResponse.setBody(fileService.readFile(httpRequest.getUrl()));
-        socketService.writeResponse(new ResponseSerializer().serialize(httpResponse));
 
+        HttpResponse resp = HttpResponse.createBuilder()
+                .withStatusCode(200)
+                .withStatusCodeName("OK")
+                .withHeader("Content-Type", "text/html; charset=utf-8")
+                .withBody(fileService.readFile(req.getUrl()))
+                .build();
+        socketService.writeResponse(responseSerializer.serialize(resp));
 
         try {
             socketService.close();
@@ -68,6 +55,5 @@ public class RequestHandler implements Runnable {
             throw new IllegalStateException(ex);
         }
         System.out.println("Client disconnected!");
-
     }
 }
