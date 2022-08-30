@@ -1,52 +1,59 @@
 package ru.geekbrains;
 
-import java.io.BufferedReader;
+import ru.geekbrains.domain.HttpRequest;
+import ru.geekbrains.domain.HttpResponse;
+import ru.geekbrains.service.FileService;
+import ru.geekbrains.service.SocketService;
+
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
-import java.net.Socket;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.*;
+import java.util.Deque;
 
 public class RequestHandler implements Runnable {
 
-    private final Socket socket;
-    private final MessageHandler messageHandler;
+    private final SocketService socketService;
 
+    private final FileService fileService;
+    private final RequestParser requestParser;
+    private final ResponseSerializer responseSerializer;
 
-
-    public RequestHandler(Socket socket) {
-        this.socket = socket;
-        messageHandler = new MessageHandler();
+    public RequestHandler(SocketService socketService,
+                          FileService fileService,
+                          RequestParser requestParser,
+                          ResponseSerializer responseSerializer) {
+        this.socketService = socketService;
+        this.fileService = fileService;
+        this.requestParser = requestParser;
+        this.responseSerializer = responseSerializer;
     }
 
     @Override
     public void run() {
-        try (BufferedReader input = new BufferedReader(
-                new InputStreamReader(
-                        socket.getInputStream(), StandardCharsets.UTF_8));
-             PrintWriter output = new PrintWriter(socket.getOutputStream())) {
+        Deque<String> rawRequest = socketService.readRequest();
+        HttpRequest req = requestParser.parse(rawRequest);
 
-            while (!input.ready());
-
-            String parts = new PartsHandler(input).getPart();
-            Path path = new PathHandler(parts).getPath();
-            new ConnectionInfoHandler(input).info();
-
-
-
-            try {
-                output.println(messageHandler.sendOK());
-                Files.newBufferedReader(path).transferTo(output);
-                output.flush();
-            } catch (AccessDeniedException | NoSuchFileException n) {
-                n.printStackTrace();
-                output.println(messageHandler.sendError());
-                output.flush();
-            }
-            System.out.println("Client disconnected!");
-        } catch (IOException e) {
-            e.printStackTrace();
+        if (!fileService.exists(req.getUrl())) {
+            HttpResponse resp = HttpResponse.createBuilder()
+                    .withStatusCode(404)
+                    .withStatusCodeName("NOT_FOUND")
+                    .withHeader("Content-Type", "text/html; charset=utf-8")
+                    .build();
+            socketService.writeResponse(responseSerializer.serialize(resp));
+            return;
         }
+
+        HttpResponse resp = HttpResponse.createBuilder()
+                .withStatusCode(200)
+                .withStatusCodeName("OK")
+                .withHeader("Content-Type", "text/html; charset=utf-8")
+                .withBody(fileService.readFile(req.getUrl()))
+                .build();
+        socketService.writeResponse(responseSerializer.serialize(resp));
+
+        try {
+            socketService.close();
+        } catch (IOException ex) {
+            throw new IllegalStateException(ex);
+        }
+        System.out.println("Client disconnected!");
     }
 }
