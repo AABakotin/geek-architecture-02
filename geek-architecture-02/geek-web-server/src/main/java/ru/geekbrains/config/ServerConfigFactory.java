@@ -10,7 +10,7 @@ public final class ServerConfigFactory {
             return new ConfigFromCli(args);
         } else if (Files.exists(Path.of("../../../server.properties"))) {
             return new ConfigFromFile("../../../server.properties");
-        } else {
+       } else {
             return new ConfigFromFixedValues();
         }
     }
