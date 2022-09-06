@@ -7,9 +7,9 @@ import ru.geekbrains.service.SocketService;
 
 public class MethodHandlerFactory {
 
-    public static MethodHandler create(SocketService socketService, ResponseSerializer responseSerializer, ServerConfig serverConfig, FileService fileService){
-        PutMethodHandler putHandler = new PutMethodHandler(null, socketService, responseSerializer, serverConfig);
-        PostMethodHandler postHandler = new PostMethodHandler(putHandler,  socketService, responseSerializer, serverConfig);
-        return new GetMethodHandler(postHandler,  socketService, responseSerializer, serverConfig, fileService);
+    public static MethodHandler create(SocketService socketService, ResponseSerializer responseSerializer, FileService fileService) {
+        PutMethodHandler putHandler = new PutMethodHandler(null, socketService, responseSerializer,fileService);
+        PostMethodHandler postHandler = new PostMethodHandler(putHandler, socketService, responseSerializer, fileService);
+        return new GetMethodHandler(postHandler, socketService, responseSerializer, fileService);
     }
 }

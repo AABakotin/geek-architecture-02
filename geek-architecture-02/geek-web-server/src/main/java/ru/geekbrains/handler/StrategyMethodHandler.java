@@ -13,7 +13,7 @@ public class StrategyMethodHandler extends MethodHandlerImpl{
     private final Function<HttpRequest, HttpResponse> strategy;
 
     public StrategyMethodHandler(String method, MethodHandlerImpl next, SocketService socketService, ResponseSerializer responseSerializer, ServerConfig config, Function<HttpRequest, HttpResponse> strategy) {
-        super(method, next, socketService, responseSerializer, config);
+        super(method, next, socketService, responseSerializer);
         this.strategy = strategy;
     }
 
