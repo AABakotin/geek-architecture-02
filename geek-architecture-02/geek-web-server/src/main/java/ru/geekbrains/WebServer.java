@@ -2,6 +2,7 @@ package ru.geekbrains;
 
 import ru.geekbrains.config.ServerConfig;
 import ru.geekbrains.config.ServerConfigFactory;
+import ru.geekbrains.handler.AnnotatedMethodHandlerFactory;
 import ru.geekbrains.handler.MethodHandlerFactory;
 import ru.geekbrains.service.FileService;
 import ru.geekbrains.service.SocketService;
@@ -26,10 +27,12 @@ public class WebServer {
 
                 new Thread(new RequestHandler(socketService,
                         new RequestParser(),
-                        MethodHandlerFactory.create(socketService,
+                        AnnotatedMethodHandlerFactory.create(socketService,
                                 new ResponseSerializer(),
-                                serverConfig,
                                 new FileService(serverConfig.getWww()))))
+//                        MethodHandlerFactory.create(socketService,
+//                                new ResponseSerializer(),
+//                                new FileService(serverConfig.getWww()))))
                         .start();
             }
         } catch (IOException e) {
